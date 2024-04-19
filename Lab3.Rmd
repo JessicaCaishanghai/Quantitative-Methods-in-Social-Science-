@@ -1,0 +1,175 @@
+---
+title: "Lab"
+author: "Xintong Cai"
+date: "2/20/2024"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(tidyr)
+gactt <- read.csv('GACTT_RESULTS_ANONYMIZED_HW3.csv')
+```
+## 1 
+
+(1) Choose one main demographic predictor you are interested in. Start with a simple linear model to regress the monthly spending on the demographic predictor, and interpret the results.
+
+
+I'm interested whether people's spending has something to do with their marital status. 
+First let's do the data cleaning. Let's organize the data and turn then into appropriate format 
+```{r}
+clean <- gactt[complete.cases(gactt$marital_status, gactt$monthly_spending),] 
+```
+
+
+```{r}
+trial <- clean
+trial$monthly_spending <- as.character(trial$monthly_spending)
+trial$monthly_spending_levels <- ifelse( trial$monthly_spending == '<$20',10,
+                                        ifelse(trial$monthly_spending == '$20-$40',30,
+                                               ifelse(trial$monthly_spending == '$40-$60',50,
+                                                      ifelse(trial$monthly_spending == '$60-$80',70,
+                                                             ifelse(trial$monthly_spending == '$80-$100',90,110)
+                                                             ))))
+
+
+fit1 <- lm(monthly_spending_levels ~ marital_status,data=trial)
+summary(fit1)
+```
+The result shows that there's significance on a 0.05 level of the monthly spending between the widowed and divorced(the baseline model). Compared with the divorced people, the widowed's monthly spending rises by 26.1017.
+
+
+I include more variables like self_experience and gender into the fit model.Because I think one's self experience and gender may be related to the monthly spending. People who have more experience may spend more money. Moreover, I somehow consider that male will spend more money compared with other groups. 
+
+```{r}
+trial <- trial[complete.cases(trial$gender),]
+trial$gender <- as.factor(trial$gender)
+fit2 <- lm(monthly_spending_levels ~ marital_status  + gender,data=trial)
+summary(fit2)
+```
+
+The results show that male compared to the baseline female have more monthly spending by 4.7, and non-binary also have more monthy spending compared with the baseline model (female) by 5.7.
+There is still significant difference in monthly spending between the widowed compared with the baseline model and the coefficients are nearly the same.
+
+```{r}
+
+fit3 <- lm(monthly_spending_levels ~ marital_status + self_experience + gender,data=trial)
+summary(fit3)
+```
+The results show that the widowed still have significant difference with the baseline(divorced) group, but is dampened by other variables like self experience and gender, so the coefficient is smaller.Also, the result shows that self_experience is related to the monthy spending. When self-experience increases by 1, the monthly spending increases by 3.18.
+
+```{r}
+print(AIC(fit1))
+print(AIC(fit2))
+print(AIC(fit3))
+```
+We should choose the third model because its aic is smaller, showing it has a better performance overall considering both the model size and accuracy. It means that the variables that we have added are effectvie.
+
+
+
+```{r}
+
+fit4 <- lm(monthly_spending_levels ~ marital_status * self_experience ,data=trial)
+summary(fit4)
+```
+
+My predictor marital status is still related to the monthly spending when it comes to comparison between the widowed and the baseline(female). But the coefficient goes from 26 to 91, which may be related to adding the self_experience term and the interaction terms (they have included some influence). However, there's no significant difference in interaction terms, indicating that the marital status and self_experiences could have relatively limited relationship. 
+
+
+
+## 2
+(1)
+
+```{r}
+trial$coffee <- ifelse(trial$abc_prefer == 'Coffee A',1,0)
+```
+I want to select the age_num as the demographic because I think age has something to do with coffee preference. Different age gruops have different taste.
+
+(2)
+I choose self_experience and marital status as the controls. 
+Because:
+1. I'm interested in whether marital status can influence people's flavor. 
+2. Self_experience is also a good indicator and it is quantifiable 
+
+```{r}
+base <- lm(coffee ~ age_num, data=trial)
+summary(base)
+fit_c <- lm(coffee ~ age_num + marital_status + self_experience + age_num,data=trial)
+summary(fit_c)
+```
+It seems like self_experience has a significant influence on the coffee preference but not the marital status. 
+
+
+(3)logic
+
+```{r}
+fit_g1 <- glm(coffee ~ age_num, data = trial, family = binomial)
+summary(fit_g1)
+fit_g2 <- glm(coffee ~ marital_status + self_experience + age_num,data=trial,family = binomial)
+summary(fit_g2)
+```
+
+The above models all show that age and self_experience have a significant influence on the coffee preference but the marital status doesn't. 
+
+In the lm model, each additional year in age_num leads to 0.003742 decrease in the possibility of coffee preference for A (without the controls.) and 0.003796 (with the controls.)
+
+In the glm model,
+when wihout the controls: each additional year of age, the log-odds of preferring coffee for A decreases by 0.0153 units.(the odds decrease by 0.0154)
+when with the controls:  each additional year of age, the log-odds of preferring coffee for A decreases by 0.0163 units.(the odds decrease by 0.0164.)
+
+
+
+
+3.
+Maybe different age groups have different preference for coffee flavor (a or b or c). So we can run a multinomial regression.
+
+```{r}
+library(nnet)
+trial$coffee_bar <- as.factor(trial$abc)
+fit_m <- multinom( coffee_bar ~ age_num, data=trial )
+summary(fit_m)
+```
+
+In the first model without the controls, it shows that an additional age causes the the log-odds of preferring Coffee B over the reference level (which is Coffee A) increase by 0.01787103 units. Which shows that an additional year means the odds of preferring coffee B over A is 1.0179 times higher.
+
+Moreover, an additional age causes the the log-odds of preferring Coffee C over the reference level (which is Coffee A) increase by 0.012 units. Which shows that an additional year means the odds of preferring coffee C over A is  1.01207 times higher.
+
+The controls: the results are similar.
+
+```{r}
+fit_m2 <- multinom( coffee_bar ~ age_num + marital_status + self_experience, data=trial )
+summary(fit_m2)
+```
+
+
+```{r}
+ggplot(trial, aes(x = abc_prefer, y = age_num)) +geom_boxplot()
+```
+From the boxplot its not very obvious.
+
+We can therefore visualize the probability of favoring coffee a/b/c.
+
+
+predicted_probs <- predict(fit_m2, type = "probs")
+
+# Create a data frame with the predicted probabilities
+
+                 
+```{r}
+new_data <- data.frame(age_num = rep(seq(10, 100, by = 2), each = 3))
+predicted_values <- predict(fit_m, newdata = new_data, type = 'probs')
+try <- cbind(new_data, predicted_values)
+```
+
+
+Let's now do some visualizations.
+```{r}
+ggplot(try, aes(x = age_num, y = a, color = 'Coffee A'))+geom_line()+
+geom_line(aes(y = b, color = "Coffee B")) +
+geom_line(aes(y = c, color = "Coffee C")) +
+labs(x = "Age", y = "Probability") 
+```
+
+
+
+

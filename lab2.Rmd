@@ -1,0 +1,143 @@
+---
+title: "Lab2"
+author: "Xintong Cai"
+date: "2/4/2024"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+##  1.Descriptive statistics
+
+```{r}
+gactt <- readRDS('GACTT_RESULTS_ANONYMIZED_HW2.RDS')
+table1 <- table(gactt$favorite_drink)
+table1
+```
+
+
+```{r barplot}
+barplot(table1)
+```
+
+We then try a pie chart.
+```{r}
+pie(table1)
+```
+Let's clean the data now. Remove the n/a in favorite drink and a_preference with scores equal to -9.
+```{R}
+df <- gactt[complete.cases(gactt$favorite_drink) & gactt$a_preference != -9 & gactt$preferred_strength != -9,] 
+df$fav_is_pour <- ifelse(df$favorite_drink == 'Pourover','Pourover','Others')
+```
+Let's compare how the pourover compares with other favorite drinks since it accounts for the most proportion.
+```{r}
+table(df$fav_is_pour)
+pie(table(df$fav_is_pour))
+```
+
+According to the summary of a_preference, we can see that the mean of a_preference is 3.33 and the max is 5. The mean of preferred_strength is 3.609.
+```{r}
+print(summary(df$a_preference))
+print(summary(df$preferred_strength))
+```
+
+## Let's visualize the distribution of the strength of preference. 
+
+```{r cars}
+barplot(table(factor(df$preferred_strength)))
+```
+
+## 2. The second questioin: T-test
+
+The fav_is_pour shows whether the favorite drink is pourover or other drinks.
+
+```{r}
+t_test_result <- t.test(a_preference ~ fav_is_pour, data = df)
+t_test_result
+```
+According to the result, there is significant difference between the two groups.People who love pourover are more likely to enjoy the tasting lot. 
+
+## 3. Third question: ANOVA 
+
+(1) Let's set a new column. And 1/2 refer to light, 3 refers to medium, 4&5 refer to strong.
+```{r}
+df$preferred <- ifelse(df$preferred_strength %in% c(1,2),'light',
+                       ifelse(df$preferred_strength %in% c(4,5),'strong','medium'))
+
+```
+(2) Run the anova test
+```{r}
+anova_result <- aov(a_preference ~ preferred_strength, data = df)
+anova_result
+```
+According to the anova test, the estimated effects may be unbalanced, which shows that it might not be a perfect estimator. Moreover, the residual standard error is 1.18, which is pretty large considering the the scale is only 1-5. 
+
+
+## 4.OLS Regression
+
+### (1)
+```{r}
+lm_model <- lm(a_preference ~ fav_is_pour, data = df)
+summary(lm_model)
+```
+According to the regression model, whether favorite is pourover has a big effect on the a_preference score. It agrees with the T-test we had in the second question saying that there's significant difference in those two groups: 'Pull over' and 'Others'.
+
+### (2) The the numeric variable
+
+```{r}
+lm_numeric <- lm(a_preference ~ preferred_strength, data=df)
+summary(lm_numeric)
+```
+According to the test, the preferred coffee strength doesn't have significant relationship with the a_preference. The result aligns with the anova test. 
+
+It's hard to choose between ANOVA and regression because both can help in some way.
+Anova is more suitable to study the difference between groups, considering the 1-5 as factors. Regression is more suitable to study the relationship between variables. The key is whether we should treat the preferred_strength as the continuous variable or discrete variable.
+
+To choose between ANOVA test and the regression, I think in this case ANOVA might be a better choice after we have recoded the preferred_strength as three categorical variables. This may not be linear relationship between the two variables.
+
+
+
+## Bonus task
+
+```{r}
+one_sample_t_test <- function(data, mu, alternative = "two.sided") {
+  n <- length(data)
+  x_bar <- mean(data)
+  s <- sd(data)
+  
+  t_stat <- (x_bar - mu) / (s / sqrt(n))
+  df <- n - 1
+  
+  if (alternative == "less") {
+    p_value <- pt(t_stat, df)
+  } else if (alternative == "greater") {
+    p_value <- 1 - pt(t_stat, df)
+  } else {
+    p_value <- 2 * pt(abs(t_stat), df, lower.tail = FALSE)
+  }
+  result <- list(
+    t_statistic = t_stat,
+    degrees_of_freedom = df,
+    p_value = p_value,
+    alternative = alternative,
+    method = "t-test"
+  )
+  
+  return(result)
+}
+
+```
+
+This is the function of the t-test. Let's try some examples.
+We can choose to conduct one-tail or two-tail test by specifying the variable of alternative as 'less' or 'greater' or 'two.sided'.
+
+```{r}
+set.seed(200)
+data <- rnorm(40, mean = 5, sd = 2)
+mu <- 4.5
+result <- one_sample_t_test(data, mu, alternative = "two.sided")
+print(result)
+```
+
+
+
